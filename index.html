@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DataView — Excel Viewer</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --border: #dde1ee;
+  --accent: #0066ff;
+  --accent2: #00aa55;
+  --text: #1a1a2e;
+  --muted: #7a80a0;
+  --table-head: #eef1fa;
+  --row-even: #f8f9fd;
+  --row-odd: #ffffff;
+  --row-hover: #eef1fa;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Syne', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Background grid */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,102,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,102,255,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.page {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+/* Header */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logo-mark {
+  width: 36px;
+  height: 36px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #000;
+}
+
+.logo-text {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.logo-text span {
+  color: var(--accent);
+}
+
+.header-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+/* Upload Zone */
+.upload-section {
+  margin-bottom: 2.5rem;
+}
+
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: 16px;
+  padding: 3.5rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  background: var(--card);
+}
+
+.upload-zone:hover,
+.upload-zone.dragover {
+  border-color: var(--accent);
+  background: rgba(0, 255, 136, 0.04);
+}
+
+.upload-zone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+.upload-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  display: block;
+  filter: grayscale(0.3);
+}
+
+.upload-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+}
+
+.upload-sub {
+  font-size: 0.88rem;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+}
+
+.upload-sub span {
+  color: var(--accent);
+}
+
+/* Stats bar */
+.stats-bar {
+  display: none;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.stats-bar.visible { display: flex; }
+
+.stat-pill {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 1.1rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stat-pill .label { color: var(--muted); }
+.stat-pill .val { color: var(--accent); font-weight: 500; }
+
+/* Toolbar */
+.toolbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.toolbar.visible { display: flex; }
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  flex: 1;
+  max-width: 320px;
+  transition: border-color 0.2s;
+}
+
+.search-box:focus-within { border-color: var(--accent); }
+
+.search-box input {
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.85rem;
+  width: 100%;
+}
+
+.search-box input::placeholder { color: var(--muted); }
+
+.search-icon { color: var(--muted); font-size: 14px; }
+
+.btn-download {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.4rem;
+  font-family: 'Syne', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-download:hover {
+  background: #00e87a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(0,255,136,0.25);
+}
+
+.btn-download:active { transform: scale(0.97); }
+
+/* Table */
+.table-wrapper {
+  display: none;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  overflow-x: auto;
+}
+
+.table-wrapper.visible { display: block; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+thead {
+  background: var(--table-head);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+thead th {
+  padding: 0.9rem 1.1rem;
+  text-align: left;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+thead th:hover { background: rgba(0,255,136,0.06); }
+
+thead th .sort-arrow {
+  display: inline-block;
+  margin-left: 4px;
+  opacity: 0.3;
+  font-size: 10px;
+}
+
+thead th.asc .sort-arrow::after { content: '▲'; opacity: 1; color: var(--accent); }
+thead th.desc .sort-arrow::after { content: '▼'; opacity: 1; color: var(--accent); }
+thead th:not(.asc):not(.desc) .sort-arrow::after { content: '⇅'; }
+
+tbody tr:nth-child(even) { background: var(--row-even); }
+tbody tr:nth-child(odd) { background: var(--row-odd); }
+tbody tr:hover { background: var(--row-hover); }
+
+tbody td {
+  padding: 0.75rem 1.1rem;
+  border-bottom: 1px solid rgba(42,42,58,0.5);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+tbody tr:last-child td { border-bottom: none; }
+
+/* No results */
+.no-results {
+  display: none;
+  text-align: center;
+  padding: 3rem;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.85rem;
+}
+
+/* Pagination */
+.pagination {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.pagination.visible { display: flex; }
+
+.page-info {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.page-btns { display: flex; gap: 0.4rem; }
+
+.page-btn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.page-btn:hover { border-color: var(--accent); color: var(--accent); }
+.page-btn.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+.page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Footer */
+footer {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in { animation: fadeIn 0.35s ease forwards; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="logo">
+      <div class="logo-mark">D</div>
+      <div class="logo-text">Data<span>Views</span></div>
+    </div>
+    <div class="header-tag">Excel → Table Viewer</div>
+  </header>
+
+  <!-- Upload -->
+  <div class="upload-section">
+    <div class="upload-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+      <span class="upload-icon">📊</span>
+      <div class="upload-title">Drop your Excel file here</div>
+      <div class="upload-sub">or click to browse &nbsp;·&nbsp; <span>.xlsx / .xls / .csv</span></div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-pill"><span class="label">File</span><span class="val" id="statFile">—</span></div>
+    <div class="stat-pill"><span class="label">Rows</span><span class="val" id="statRows">—</span></div>
+    <div class="stat-pill"><span class="label">Columns</span><span class="val" id="statCols">—</span></div>
+    <div class="stat-pill"><span class="label">Showing</span><span class="val" id="statShowing">—</span></div>
+  </div>
+
+
+  <div class="toolbar" id="toolbar">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Search across all columns..." />
+    </div>
+    <button class="btn-download" id="downloadBtn">
+      ⬇ Download Excel
+    </button>
+  </div>
+
+  <div class="table-wrapper" id="tableWrapper">
+    <table id="dataTable">
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div class="no-results" id="noResults">No matching rows found.</div>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination" id="pagination">
+    <div class="page-info" id="pageInfo"></div>
+    <div class="page-btns" id="pageBtns"></div>
+  </div>
+
+  <footer>DataView — Upload · View · Download &nbsp;·&nbsp;</footer>
+</div>
+
+<script>
+let allData = [];
+let filteredData = [];
+let headers = [];
+let currentPage = 1;
+let sortCol = -1;
+let sortDir = 'asc';
+let workbook = null;
+let fileName = '';
+const ROWS_PER_PAGE = 20;
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const searchInput = document.getElementById('searchInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) processFile(fileInput.files[0]);
+});
+
+function processFile(file) {
+  fileName = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const data = new Uint8Array(e.target.result);
+    workbook = XLSX.read(data, { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    if (!json.length) return;
+    headers = json[0].map(h => String(h));
+    allData = json.slice(1).filter(r => r.some(c => c !== ''));
+    filteredData = [...allData];
+    sortCol = -1;
+    currentPage = 1;
+    renderAll();
+    show('statsBar'); show('toolbar'); show('tableWrapper'); show('pagination');
+    document.getElementById('statFile').textContent = fileName;
+    document.getElementById('statRows').textContent = allData.length;
+    document.getElementById('statCols').textContent = headers.length;
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderAll() {
+  renderHead();
+  renderBody();
+  renderPagination();
+  updateStats();
+}
+
+function renderHead() {
+  const tr = document.createElement('tr');
+  headers.forEach((h, i) => {
+    const th = document.createElement('th');
+    th.innerHTML = `${h} <span class="sort-arrow"></span>`;
+    if (i === sortCol) th.classList.add(sortDir);
+    th.addEventListener('click', () => {
+      if (sortCol === i) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      else { sortCol = i; sortDir = 'asc'; }
+      filteredData.sort((a, b) => {
+        const av = a[i] ?? ''; const bv = b[i] ?? '';
+        const n = Number(av) - Number(bv);
+        const res = isNaN(n) ? String(av).localeCompare(String(bv)) : n;
+        return sortDir === 'asc' ? res : -res;
+      });
+      currentPage = 1;
+      renderAll();
+    });
+    tr.appendChild(th);
+  });
+  const head = document.getElementById('tableHead');
+  head.innerHTML = '';
+  head.appendChild(tr);
+}
+
+function renderBody() {
+  const body = document.getElementById('tableBody');
+  body.innerHTML = '';
+  const start = (currentPage - 1) * ROWS_PER_PAGE;
+  const pageRows = filteredData.slice(start, start + ROWS_PER_PAGE);
+  const noRes = document.getElementById('noResults');
+
+  if (!filteredData.length) {
+    noRes.style.display = 'block';
+    return;
+  }
+  noRes.style.display = 'none';
+
+  pageRows.forEach(row => {
+    const tr = document.createElement('tr');
+    headers.forEach((_, i) => {
+      const td = document.createElement('td');
+      td.textContent = row[i] ?? '';
+      td.title = row[i] ?? '';
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+}
+
+function renderPagination() {
+  const total = Math.ceil(filteredData.length / ROWS_PER_PAGE);
+  const info = document.getElementById('pageInfo');
+  const btns = document.getElementById('pageBtns');
+  const start = (currentPage - 1) * ROWS_PER_PAGE + 1;
+  const end = Math.min(currentPage * ROWS_PER_PAGE, filteredData.length);
+  info.textContent = filteredData.length ? `${start}–${end} of ${filteredData.length} rows` : '0 rows';
+  btns.innerHTML = '';
+
+  const prev = document.createElement('button');
+  prev.className = 'page-btn';
+  prev.textContent = '←';
+  prev.disabled = currentPage === 1;
+  prev.onclick = () => { currentPage--; renderBody(); renderPagination(); };
+  btns.appendChild(prev);
+
+  const maxPages = 5;
+  let startP = Math.max(1, currentPage - 2);
+  let endP = Math.min(total, startP + maxPages - 1);
+  if (endP - startP < maxPages - 1) startP = Math.max(1, endP - maxPages + 1);
+
+  for (let p = startP; p <= endP; p++) {
+    const btn = document.createElement('button');
+    btn.className = 'page-btn' + (p === currentPage ? ' active' : '');
+    btn.textContent = p;
+    btn.onclick = (pg => () => { currentPage = pg; renderBody(); renderPagination(); })(p);
+    btns.appendChild(btn);
+  }
+
+  const next = document.createElement('button');
+  next.className = 'page-btn';
+  next.textContent = '→';
+  next.disabled = currentPage === total || total === 0;
+  next.onclick = () => { currentPage++; renderBody(); renderPagination(); };
+  btns.appendChild(next);
+}
+
+function updateStats() {
+  const start = (currentPage - 1) * ROWS_PER_PAGE + 1;
+  const end = Math.min(currentPage * ROWS_PER_PAGE, filteredData.length);
+  document.getElementById('statShowing').textContent = filteredData.length ? `${start}–${end}` : '0';
+}
+
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.toLowerCase();
+  filteredData = allData.filter(row => row.some(c => String(c).toLowerCase().includes(q)));
+  currentPage = 1;
+  renderBody();
+  renderPagination();
+  updateStats();
+});
+
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  if (!workbook) return;
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...allData]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  XLSX.writeFile(wb, fileName || 'download.xlsx');
+});
+
+function show(id) {
+  const el = document.getElementById(id);
+  el.classList.add('visible', 'animate-in');
+}
+</script>
+</body>
+</html>
