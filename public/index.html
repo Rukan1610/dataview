@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DataView — Coal Viewer</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --border: #dde1ee;
+  --accent: #0066ff;
+  --accent2: #00aa55;
+  --danger: #e53e3e;
+  --danger-hover: #c53030;
+  --text: #1a1a2e;
+  --muted: #7a80a0;
+  --table-head: #eef1fa;
+  --row-even: #f8f9fd;
+  --row-odd: #ffffff;
+  --row-hover: #eef1fa;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Syne', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,102,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,102,255,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.page {
+  position: relative;
+  z-index: 1;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.logo { display: flex; align-items: center; gap: 0.75rem; }
+
+.logo-mark {
+  width: 36px; height: 36px;
+  background: var(--accent);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; font-weight: 800; color: #fff;
+}
+
+.logo-text { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.03em; }
+.logo-text span { color: var(--accent); }
+
+.header-tag {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 4px;
+}
+
+/* Toast */
+#toast {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  padding: 0.75rem 1.4rem;
+  border-radius: 10px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: #fff;
+  z-index: 999;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+#toast.show { opacity: 1; transform: translateY(0); }
+#toast.success { background: var(--accent2); }
+#toast.error   { background: var(--danger); }
+#toast.info    { background: var(--accent); }
+
+/* Upload Zone */
+.upload-section { margin-bottom: 2.5rem; }
+
+.upload-zone {
+  border: 2px dashed var(--border);
+  border-radius: 16px;
+  padding: 3rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  background: var(--card);
+}
+
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--accent);
+  background: rgba(0,102,255,0.03);
+}
+
+.upload-zone input[type="file"] {
+  position: absolute; inset: 0;
+  opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+
+.upload-icon { font-size: 2.8rem; margin-bottom: 0.75rem; display: block; }
+.upload-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.4rem; }
+.upload-sub { font-size: 0.86rem; color: var(--muted); font-family: 'DM Mono', monospace; }
+.upload-sub span { color: var(--accent); }
+
+/* Upload progress */
+.upload-progress {
+  display: none;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.upload-progress.visible { display: flex; }
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Stats bar */
+.stats-bar {
+  display: none;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+.stats-bar.visible { display: flex; }
+
+.stat-pill {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 1.1rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.8rem;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.stat-pill .label { color: var(--muted); }
+.stat-pill .val { color: var(--accent); font-weight: 500; }
+
+/* Toolbar */
+.toolbar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.toolbar.visible { display: flex; }
+
+.search-box {
+  display: flex; align-items: center; gap: 0.5rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  flex: 1; max-width: 320px;
+  transition: border-color 0.2s;
+}
+.search-box:focus-within { border-color: var(--accent); }
+.search-box input {
+  background: none; border: none; outline: none;
+  color: var(--text);
+  font-family: 'DM Mono', monospace; font-size: 0.85rem;
+  width: 100%;
+}
+.search-box input::placeholder { color: var(--muted); }
+
+.btn {
+  display: flex; align-items: center; gap: 0.5rem;
+  border: none; border-radius: 8px;
+  padding: 0.6rem 1.4rem;
+  font-family: 'Syne', sans-serif; font-size: 0.88rem; font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: #0055dd; transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,102,255,0.25); }
+.btn-primary:active { transform: scale(0.97); }
+
+/* Table */
+.table-wrapper {
+  display: none;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  overflow-x: auto;
+}
+.table-wrapper.visible { display: block; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+
+thead {
+  background: var(--table-head);
+  position: sticky; top: 0; z-index: 2;
+}
+
+thead th {
+  padding: 0.85rem 1rem;
+  text-align: left;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem; font-weight: 500;
+  color: var(--accent);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+thead th:hover { background: rgba(0,102,255,0.06); }
+thead th.no-sort { cursor: default; }
+thead th.no-sort:hover { background: var(--table-head); }
+
+thead th .sort-arrow { display: inline-block; margin-left: 4px; opacity: 0.3; font-size: 10px; }
+thead th.asc  .sort-arrow::after { content: '▲'; opacity: 1; color: var(--accent); }
+thead th.desc .sort-arrow::after { content: '▼'; opacity: 1; color: var(--accent); }
+thead th:not(.asc):not(.desc):not(.no-sort) .sort-arrow::after { content: '⇅'; }
+
+tbody tr:nth-child(even) { background: var(--row-even); }
+tbody tr:nth-child(odd)  { background: var(--row-odd); }
+tbody tr:hover           { background: var(--row-hover); }
+
+tbody td {
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid rgba(221,225,238,0.8);
+  color: var(--text);
+  font-family: 'DM Mono', monospace; font-size: 0.8rem;
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+tbody tr:last-child td { border-bottom: none; }
+
+/* Delete button in table */
+.btn-delete {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  font-family: 'DM Mono', monospace;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.btn-delete:hover {
+  background: var(--danger);
+  color: #fff;
+  transform: scale(1.05);
+}
+.btn-delete:active { transform: scale(0.97); }
+
+/* Row being deleted */
+tbody tr.deleting { opacity: 0.4; pointer-events: none; transition: opacity 0.3s; }
+
+.no-results {
+  display: none;
+  text-align: center; padding: 3rem;
+  color: var(--muted);
+  font-family: 'DM Mono', monospace; font-size: 0.85rem;
+}
+
+/* Pagination */
+.pagination {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+  flex-wrap: wrap; gap: 0.75rem;
+}
+.pagination.visible { display: flex; }
+
+.page-info { font-family: 'DM Mono', monospace; font-size: 0.78rem; color: var(--muted); }
+.page-btns { display: flex; gap: 0.4rem; }
+
+.page-btn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  font-family: 'DM Mono', monospace; font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.page-btn:hover { border-color: var(--accent); color: var(--accent); }
+.page-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
+.page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  font-family: 'DM Mono', monospace;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.empty-state .icon { font-size: 3rem; margin-bottom: 1rem; display: block; }
+
+footer {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  font-family: 'DM Mono', monospace; font-size: 0.75rem;
+  color: var(--muted);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-in { animation: fadeIn 0.35s ease forwards; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="logo">
+      <div class="logo-mark">D</div>
+      <div class="logo-text">Data<span>View</span></div>
+    </div>
+    <div class="header-tag">Coal DB Viewer</div>
+  </header>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <!-- Upload -->
+  <div class="upload-section">
+    <div class="upload-zone" id="dropZone">
+      <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+      <span class="upload-icon">📊</span>
+      <div class="upload-title">Upload Excel to Database</div>
+      <div class="upload-sub">Drop file here or click to browse &nbsp;·&nbsp; <span>.xlsx / .xls / .csv</span></div>
+    </div>
+    <div class="upload-progress" id="uploadProgress">
+      <div class="spinner"></div>
+      <span id="uploadProgressMsg">Uploading and inserting rows…</span>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-pill"><span class="label">Total in DB</span><span class="val" id="statTotal">—</span></div>
+    <div class="stat-pill"><span class="label">Filtered</span><span class="val" id="statFiltered">—</span></div>
+    <div class="stat-pill"><span class="label">Showing</span><span class="val" id="statShowing">—</span></div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar" id="toolbar">
+    <div class="search-box">
+      <span style="color:var(--muted);font-size:14px;">🔍</span>
+      <input type="text" id="searchInput" placeholder="Search across all columns…" />
+    </div>
+    <button class="btn btn-primary" id="refreshBtn">↻ Refresh</button>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrapper" id="tableWrapper">
+    <table id="dataTable">
+      <thead id="tableHead"></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div class="no-results" id="noResults">No matching rows found.</div>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination" id="pagination">
+    <div class="page-info" id="pageInfo"></div>
+    <div class="page-btns" id="pageBtns"></div>
+  </div>
+
+  <footer>DataView &nbsp;·&nbsp; Upload · View · Delete &nbsp;·&nbsp; MongoDB-backed</footer>
+</div>
+
+<script>
+
+const API_BASE = '';  
+
+const HEADERS_ORDER = [
+  'coal','SiO2','Al2O3','Fe2O3','CaO','MgO',
+  'Na2O','K2O','TiO2','SO3','P2O5','Mn3O4',
+  'SulphurS','gcv','cost','coalId'
+];
+
+const ROWS_PER_PAGE = 20;
+
+let allData     = [];   
+let filteredData = [];
+let currentPage  = 1;
+let sortCol      = -1;
+let sortDir      = 'asc';
+
+let toastTimer = null;
+function toast(msg, type = 'info', duration = 3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, duration);
+}
+
+
+const dropZone  = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) uploadFile(file);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) uploadFile(fileInput.files[0]);
+  fileInput.value = '';  
+});
+
+async function uploadFile(file) {
+  const progress = document.getElementById('uploadProgress');
+  const msg      = document.getElementById('uploadProgressMsg');
+  progress.classList.add('visible');
+  msg.textContent = `Parsing "${file.name}" and inserting into DB…`;
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const res  = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: formData });
+    const json = await res.json();
+
+    if (!json.success) throw new Error(json.error || 'Upload failed');
+
+    toast(`✅  ${json.inserted} row(s) added to database`, 'success', 4000);
+    await loadData();
+  } catch (err) {
+    toast(`❌  ${err.message}`, 'error', 5000);
+  } finally {
+    progress.classList.remove('visible');
+  }
+}
+
+async function loadData() {
+  try {
+    const res  = await fetch(`${API_BASE}/api/coals`);
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error);
+
+    allData      = json.data;
+    filteredData = applySearch(allData);
+    currentPage  = 1;
+    renderAll();
+    showUI();
+  } catch (err) {
+    toast(`❌  Failed to load data: ${err.message}`, 'error', 6000);
+  }
+}
+
+function applySearch(data) {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim();
+  if (!q) return [...data];
+  return data.filter(row =>
+    HEADERS_ORDER.some(h => String(row[h] ?? '').toLowerCase().includes(q))
+  );
+}
+
+
+function renderAll() {
+  renderHead();
+  renderBody();
+  renderPagination();
+  updateStats();
+}
+
+function renderHead() {
+  const tr = document.createElement('tr');
+
+  HEADERS_ORDER.forEach((h, i) => {
+    const th = document.createElement('th');
+    th.innerHTML = `${h} <span class="sort-arrow"></span>`;
+    if (i === sortCol) th.classList.add(sortDir);
+    th.addEventListener('click', () => {
+      if (sortCol === i) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      else { sortCol = i; sortDir = 'asc'; }
+      filteredData.sort((a, b) => {
+        const av = a[HEADERS_ORDER[i]] ?? '';
+        const bv = b[HEADERS_ORDER[i]] ?? '';
+        const n  = Number(av) - Number(bv);
+        const res = isNaN(n) ? String(av).localeCompare(String(bv)) : n;
+        return sortDir === 'asc' ? res : -res;
+      });
+      currentPage = 1;
+      renderAll();
+    });
+    tr.appendChild(th);
+  });
+
+
+  const thDel = document.createElement('th');
+  thDel.textContent = 'Action';
+  thDel.classList.add('no-sort');
+  tr.appendChild(thDel);
+
+  const head = document.getElementById('tableHead');
+  head.innerHTML = '';
+  head.appendChild(tr);
+}
+
+function renderBody() {
+  const body   = document.getElementById('tableBody');
+  const noRes  = document.getElementById('noResults');
+  body.innerHTML = '';
+
+  if (!filteredData.length) {
+    noRes.style.display = 'block';
+    return;
+  }
+  noRes.style.display = 'none';
+
+  const start    = (currentPage - 1) * ROWS_PER_PAGE;
+  const pageRows = filteredData.slice(start, start + ROWS_PER_PAGE);
+
+  pageRows.forEach(row => {
+    const tr = document.createElement('tr');
+
+    HEADERS_ORDER.forEach(h => {
+      const td = document.createElement('td');
+      const val = row[h] ?? '';
+      td.textContent = val;
+      td.title = String(val);
+      tr.appendChild(td);
+    });
+
+    // Delete button cell
+    const tdDel = document.createElement('td');
+    const btn   = document.createElement('button');
+    btn.className = 'btn-delete';
+    btn.textContent = '🗑 Delete';
+    btn.addEventListener('click', () => deleteRow(row._id, tr));
+    tdDel.appendChild(btn);
+    tr.appendChild(tdDel);
+
+    body.appendChild(tr);
+  });
+}
+
+async function deleteRow(id, trEl) {
+  if (!confirm('Delete this row from the database?')) return;
+  trEl.classList.add('deleting');
+  try {
+    const res  = await fetch(`${API_BASE}/api/coals/${id}`, { method: 'DELETE' });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error);
+
+    
+    allData      = allData.filter(r => r._id !== id);
+    filteredData = filteredData.filter(r => r._id !== id);
+
+    
+    const totalPages = Math.ceil(filteredData.length / ROWS_PER_PAGE);
+    if (currentPage > totalPages && currentPage > 1) currentPage--;
+
+    renderBody();
+    renderPagination();
+    updateStats();
+    toast('🗑  Row deleted', 'info');
+  } catch (err) {
+    trEl.classList.remove('deleting');
+    toast(`❌  ${err.message}`, 'error');
+  }
+}
+
+function renderPagination() {
+  const total = Math.ceil(filteredData.length / ROWS_PER_PAGE);
+  const info  = document.getElementById('pageInfo');
+  const btns  = document.getElementById('pageBtns');
+  const start = (currentPage - 1) * ROWS_PER_PAGE + 1;
+  const end   = Math.min(currentPage * ROWS_PER_PAGE, filteredData.length);
+  info.textContent = filteredData.length ? `${start}–${end} of ${filteredData.length}` : '0 rows';
+  btns.innerHTML = '';
+
+  const prev = Object.assign(document.createElement('button'), { className: 'page-btn', textContent: '←', disabled: currentPage === 1 });
+  prev.onclick = () => { currentPage--; renderBody(); renderPagination(); updateStats(); };
+  btns.appendChild(prev);
+
+  const maxPages = 5;
+  let startP = Math.max(1, currentPage - 2);
+  let endP   = Math.min(total, startP + maxPages - 1);
+  if (endP - startP < maxPages - 1) startP = Math.max(1, endP - maxPages + 1);
+
+  for (let p = startP; p <= endP; p++) {
+    const btn = document.createElement('button');
+    btn.className = 'page-btn' + (p === currentPage ? ' active' : '');
+    btn.textContent = p;
+    btn.onclick = (pg => () => { currentPage = pg; renderBody(); renderPagination(); updateStats(); })(p);
+    btns.appendChild(btn);
+  }
+
+  const next = Object.assign(document.createElement('button'), { className: 'page-btn', textContent: '→', disabled: currentPage === total || total === 0 });
+  next.onclick = () => { currentPage++; renderBody(); renderPagination(); updateStats(); };
+  btns.appendChild(next);
+}
+
+function updateStats() {
+  const start = (currentPage - 1) * ROWS_PER_PAGE + 1;
+  const end   = Math.min(currentPage * ROWS_PER_PAGE, filteredData.length);
+  document.getElementById('statTotal').textContent    = allData.length;
+  document.getElementById('statFiltered').textContent = filteredData.length;
+  document.getElementById('statShowing').textContent  = filteredData.length ? `${start}–${end}` : '0';
+}
+
+function showUI() {
+  ['statsBar','toolbar','tableWrapper','pagination'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.add('visible');
+    if (!el.classList.contains('animate-in')) el.classList.add('animate-in');
+  });
+}
+
+// ── Search ───────────────────────────────────────────────────────────────────
+document.getElementById('searchInput').addEventListener('input', () => {
+  filteredData = applySearch(allData);
+  currentPage  = 1;
+  renderBody();
+  renderPagination();
+  updateStats();
+});
+
+// ── Refresh ──────────────────────────────────────────────────────────────────
+document.getElementById('refreshBtn').addEventListener('click', () => {
+  toast('↻ Refreshing…', 'info', 1500);
+  loadData();
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>
