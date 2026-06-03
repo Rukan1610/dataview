@@ -149,11 +149,10 @@ app.get('*', (req, res) => {
 mongoose
   .connect(MONGODB_URI)
   .then(() => {
-    console.log(`✅  MongoDB connected: ${MONGODB_URI}`);
-    app.listen(PORT, () => console.log(`🚀  Server running at http://localhost:${PORT}`));
+    console.log('✅ MongoDB connected');
   })
   .catch(err => {
-    console.log(MONGODB_URI);
-    console.error('❌  MongoDB connection failed:', err.message);
-    process.exit(1);
+    console.error('❌ MongoDB connection failed:', err.message);
   });
+
+module.exports = app;
