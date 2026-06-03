@@ -115,7 +115,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-//go through this section for deletion as you will have to create updation part next 
+//go through thiss section for deletion as you will have to create updation part next 
 app.delete('/api/coals/:id', async (req, res) => {
   try {
     const result = await Coal.findByIdAndDelete(req.params.id);
@@ -140,7 +140,7 @@ app.put('/api/coals/:id', async (req, res) => {
   }
 });
 
-//this is for you to understand how our main page is like this code will tell the server to send the index.html file for any route that doesn't match the above API routes.
+//thiss is for you to understand how our main page is like this code will tell the server to send the index.html file for any route that doesn't match the above API routes.
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
