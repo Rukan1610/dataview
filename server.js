@@ -126,6 +126,20 @@ app.delete('/api/coals/:id', async (req, res) => {
   }
 });
 
+app.put('/api/coals/:id', async (req, res) => {
+  try {
+    const result = await Coal.findByIdAndUpdate(
+      req.params.id,
+      { $set: req.body },
+      { new: true }
+    );
+    if (!result) return res.status(404).json({ success: false, error: 'Record not found.' });
+    res.json({ success: true, data: result });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 //this is for you to understand how our main page is like this code will tell the server to send the index.html file for any route that doesn't match the above API routes.
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

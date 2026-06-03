@@ -360,6 +360,122 @@ footer {
   to   { opacity: 1; transform: translateY(0); }
 }
 .animate-in { animation: fadeIn 0.35s ease forwards; }
+.btn-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 6px;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+  font-family: 'DM Mono', monospace;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.btn-edit:hover {
+  background: var(--accent);
+  color: #fff;
+  transform: scale(1.05);
+}
+
+/* Modal */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.visible { display: flex; }
+
+.modal {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 2rem;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+
+.modal-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  color: var(--text);
+}
+
+.modal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.modal-field label {
+  display: block;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.35rem;
+}
+
+.modal-field input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.82rem;
+  color: var(--text);
+  background: var(--bg);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.modal-field input:focus { border-color: var(--accent); }
+
+.modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.btn-cancel {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 0.6rem 1.4rem;
+  font-family: 'Syne', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-cancel:hover { border-color: var(--muted); color: var(--text); }
+
+.btn-save {
+  background: var(--accent2);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0.6rem 1.4rem;
+  font-family: 'Syne', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-save:hover { background: #009944; transform: translateY(-1px); }
 </style>
 </head>
 <body>
@@ -420,7 +536,17 @@ footer {
     <div class="page-info" id="pageInfo"></div>
     <div class="page-btns" id="pageBtns"></div>
   </div>
-
+  <!-- Edit Modal -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal">
+      <div class="modal-title">✏️ Edit Coal Record</div>
+      <div class="modal-grid" id="modalFields"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+        <button class="btn-save" onclick="saveEdit()">Save Changes</button>
+      </div>
+    </div>
+  </div>
   <footer>DataView &nbsp;·&nbsp; Upload · View · Delete &nbsp;·&nbsp; MongoDB-backed</footer>
 </div>
 
@@ -603,11 +729,21 @@ function renderBody() {
 
     // Delete button cell
     const tdDel = document.createElement('td');
-    const btn   = document.createElement('button');
+    tdDel.style.display = 'flex';
+    tdDel.style.gap = '0.5rem';
+
+    const btnEdit = document.createElement('button');
+    btnEdit.className = 'btn-edit';
+    btnEdit.textContent = '✏️ Edit';
+    btnEdit.addEventListener('click', () => openEditModal(row));
+    tdDel.appendChild(btnEdit);
+
+    const btn = document.createElement('button');
     btn.className = 'btn-delete';
     btn.textContent = '🗑 Delete';
     btn.addEventListener('click', () => deleteRow(row._id, tr));
     tdDel.appendChild(btn);
+
     tr.appendChild(tdDel);
 
     body.appendChild(tr);
@@ -703,7 +839,68 @@ document.getElementById('refreshBtn').addEventListener('click', () => {
 });
 
 // ── Init ─────────────────────────────────────────────────────────────────────
-loadData();
+let editingId = null;
+
+function openEditModal(row) {
+  editingId = row._id;
+  const fields = document.getElementById('modalFields');
+  fields.innerHTML = '';
+  HEADERS_ORDER.forEach(h => {
+    const div = document.createElement('div');
+    div.className = 'modal-field';
+    div.innerHTML = `
+      <label>${h}</label>
+      <input type="text" id="edit-${h}" value="${row[h] ?? ''}" />
+    `;
+    fields.appendChild(div);
+  });
+  document.getElementById('editModal').classList.add('visible');
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').classList.remove('visible');
+  editingId = null;
+}
+
+async function saveEdit() {
+  if (!editingId) return;
+  const updatedData = {};
+  HEADERS_ORDER.forEach(h => {
+    const input = document.getElementById(`edit-${h}`);
+    if (input) updatedData[h] = input.value;
+  });
+  try {
+    const res = await fetch(`${API_BASE}/api/coals/${editingId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedData)
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error);
+    toast('✅ Record updated!', 'success');
+    closeEditModal();
+    await loadData();
+  } catch (err) {
+    toast(`❌ ${err.message}`, 'error');
+  }
+}
+
+document.getElementById('editModal').addEventListener('click', function(e) {
+  if (e.target === this) closeEditModal();
+});
+
+// Test data - remove later
+allData = [{
+  _id: '123',
+  coal: 'Test Coal',
+  SiO2: 50, Al2O3: 20, Fe2O3: 10,
+  CaO: 5, MgO: 2, Na2O: 1,
+  K2O: 1, TiO2: 0.5, SO3: 3,
+  P2O5: 0.2, Mn3O4: 0.1
+}];
+filteredData = [...allData];
+renderAll();
+showUI();
 </script>
 </body>
 </html>
