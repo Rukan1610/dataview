@@ -889,18 +889,7 @@ document.getElementById('editModal').addEventListener('click', function(e) {
   if (e.target === this) closeEditModal();
 });
 
-// Test data - remove later
-allData = [{
-  _id: '123',
-  coal: 'Test Coal',
-  SiO2: 50, Al2O3: 20, Fe2O3: 10,
-  CaO: 5, MgO: 2, Na2O: 1,
-  K2O: 1, TiO2: 0.5, SO3: 3,
-  P2O5: 0.2, Mn3O4: 0.1
-}];
-filteredData = [...allData];
-renderAll();
-showUI();
+loadData();
 </script>
 </body>
 </html>
